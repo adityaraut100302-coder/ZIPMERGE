@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZIP → Excel Merger</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#f8f8f6; --surface:#fff; --surface-1:#f3f3f0;
+  --border:rgba(0,0,0,0.09); --border-strong:rgba(0,0,0,0.18);
+  --text-primary:#1a1a18; --text-secondary:#5a5a56; --text-muted:#9a9a94;
+  --accent:#2563eb; --accent-bg:#eff6ff; --accent-border:#bfdbfe; --accent-text:#1d4ed8;
+  --success:#16a34a; --success-bg:#f0fdf4; --success-border:#bbf7d0;
+  --danger:#dc2626; --danger-bg:#fef2f2;
+  --warning:#d97706; --warning-bg:#fffbeb;
+  --purple:#7c3aed; --purple-bg:#f5f3ff; --purple-border:#ddd6fe; --purple-text:#6d28d9;
+  --radius:8px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#111110; --surface:#1c1c1a; --surface-1:#242422;
+  --border:rgba(255,255,255,0.09); --border-strong:rgba(255,255,255,0.18);
+  --text-primary:#f0f0ec; --text-secondary:#a0a09a; --text-muted:#606058;
+  --accent:#3b82f6; --accent-bg:#1e2d4a; --accent-border:#2d4a7a; --accent-text:#60a5fa;
+  --success:#22c55e; --success-bg:#0f2a18; --success-border:#166534;
+  --danger:#f87171; --danger-bg:#2a0f0f;
+  --warning:#fbbf24; --warning-bg:#2a1f0a;
+  --purple:#a78bfa; --purple-bg:#2e1f4a; --purple-border:#4c1d95; --purple-text:#c4b5fd;
+}}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text-primary);min-height:100vh;line-height:1.6}
+.page{max-width:960px;margin:0 auto;padding:2rem 1.5rem 5rem}
+
+/* Hero */
+.hero{text-align:center;padding:3rem 0 2.5rem}
+.hero-icon{width:56px;height:56px;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:1.25rem}
+.hero-icon i{font-size:28px;color:var(--accent)}
+.hero h1{font-size:28px;font-weight:600;letter-spacing:-.5px;margin-bottom:.5rem}
+.hero p{font-size:15px;color:var(--text-secondary);max-width:500px;margin:0 auto}
+
+/* Steps */
+.steps{display:flex;align-items:center;margin-bottom:2rem}
+.step{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);white-space:nowrap}
+.step-num{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0}
+.step.active{color:var(--text-primary)}.step.active .step-num{background:var(--accent);border-color:var(--accent);color:#fff}
+.step.done{color:var(--success)}.step.done .step-num{background:var(--success-bg);border-color:var(--success);color:var(--success)}
+.step-line{flex:1;height:1px;background:var(--border);margin:0 10px}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;box-shadow:var(--shadow-sm);margin-bottom:1.25rem}
+.card-title{font-size:13px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:1rem;display:flex;align-items:center;gap:6px}
+
+/* Upload */
+.upload-dropzone{border:1.5px dashed var(--border-strong);border-radius:12px;padding:2.25rem 2rem;text-align:center;cursor:pointer;transition:all .15s;background:transparent;position:relative}
+.upload-dropzone:hover,.upload-dropzone.drag{border-color:var(--accent);background:var(--accent-bg)}
+.upload-dropzone.has-files{border-color:var(--success);background:var(--success-bg)}
+/* IMPORTANT: file input only covers the top icon/text area, NOT the pills */
+.upload-dropzone input[type=file]{position:absolute;top:0;left:0;right:0;height:120px;opacity:0;cursor:pointer;width:100%}
+.upload-icon{width:44px;height:44px;background:var(--surface-1);border:1px solid var(--border);border-radius:12px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:.75rem}
+.upload-icon i{font-size:22px;color:var(--text-secondary)}
+.upload-title{font-size:15px;font-weight:500;color:var(--text-primary);margin-bottom:3px}
+.upload-sub{font-size:13px;color:var(--text-muted)}
+/* Pills are OUTSIDE the input overlay */
+.file-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:1.25rem;justify-content:center;position:relative;z-index:10}
+.file-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 12px;background:var(--surface);border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--text-secondary)}
+.file-pill i.zip-icon{color:var(--success);font-size:13px}
+.pill-remove{width:18px;height:18px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);font-size:11px;transition:all .1s;flex-shrink:0;margin-left:2px}
+.pill-remove:hover{background:var(--danger-bg);border-color:var(--danger);color:var(--danger)}
+
+/* Options */
+.opts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.opt{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;transition:all .12s;user-select:none;display:flex;align-items:flex-start;gap:10px}
+.opt:hover{border-color:var(--border-strong);background:var(--surface-1)}
+.opt.active{border-color:var(--accent);background:var(--accent-bg)}
+.opt-check{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;transition:all .12s}
+.opt.active .opt-check{background:var(--accent);border-color:var(--accent)}
+.opt.active .opt-check i{color:#fff;font-size:12px;display:block}
+.opt:not(.active) .opt-check i{display:none}
+.opt-body .opt-title{font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:2px}
+.opt-body .opt-desc{font-size:12px;color:var(--text-muted);line-height:1.4}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:var(--radius);font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--border-strong);background:transparent;color:var(--text-primary);transition:all .12s;white-space:nowrap}
+.btn:hover{background:var(--surface-1)}.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* Progress */
+.progress-wrap{margin-bottom:1.25rem}
+.progress-label{display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);margin-bottom:6px}
+.progress-track{background:var(--surface-1);border-radius:999px;height:5px;overflow:hidden;border:1px solid var(--border)}
+.progress-fill{height:100%;background:var(--accent);border-radius:999px;transition:width .25s ease}
+
+/* Log */
+.log{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1rem;max-height:160px;overflow-y:auto;font-family:'SF Mono','Fira Code',monospace}
+.log-line{font-size:12px;line-height:1.9;color:var(--text-secondary)}
+.log-line.ok{color:var(--success)}.log-line.err{color:var(--danger)}
+.log-line.info{color:var(--accent-text)}.log-line.bold{color:var(--text-primary);font-weight:500;font-family:-apple-system,sans-serif}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:1.25rem}
+.stat-card{background:var(--surface-1);border-radius:var(--radius);padding:1rem 1.125rem}
+.stat-num{font-size:26px;font-weight:600;color:var(--text-primary);letter-spacing:-.5px}
+.stat-label{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+/* Column selector */
+.col-selector-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:.75rem}
+.col-item{display:flex;align-items:center;gap:9px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .12s;user-select:none;background:var(--surface-1)}
+.col-item:hover{border-color:var(--border-strong)}
+.col-item.checked{border-color:var(--accent);background:var(--accent-bg)}
+.col-cb{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s}
+.col-item.checked .col-cb{background:var(--accent);border-color:var(--accent)}
+.col-item.checked .col-cb i{color:#fff;font-size:11px;display:block}
+.col-item:not(.checked) .col-cb i{display:none}
+.col-name{font-size:12px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.col-type-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-text{background:var(--accent)}.dot-number{background:var(--success)}.dot-date{background:var(--warning)}
+.col-sel-actions{display:flex;gap:8px;margin-bottom:.875rem}
+.col-count-badge{display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;background:var(--surface-1);border:1px solid var(--border);color:var(--text-secondary);margin-left:6px}
+
+/* Filters */
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:.75rem}
+.filter-item{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px}
+.filter-label{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.type-badge{font-size:10px;padding:1px 6px;border-radius:999px;font-weight:500}
+.type-text{background:var(--accent-bg);color:var(--accent-text)}
+.type-number{background:var(--success-bg);color:var(--success);border:1px solid rgba(22,163,74,.2)}
+.type-date{background:var(--warning-bg);color:var(--warning);border:1px solid rgba(217,119,6,.2)}
+.filter-input{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;background:var(--surface);color:var(--text-primary);outline:none}
+.filter-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.12)}
+.filter-row-num{display:flex;gap:6px}
+.filter-row-num input{flex:1}
+.filter-sep{font-size:11px;color:var(--text-muted);align-self:center}
+
+/* Date pill picker */
+.date-picker-wrap{display:flex;flex-direction:column;gap:8px}
+.date-section-lbl{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.pill-group{display:flex;flex-wrap:wrap;gap:4px}
+.dpill{display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;border-radius:999px;font-size:12px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);cursor:pointer;transition:all .1s;user-select:none;white-space:nowrap}
+.dpill:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-bg)}
+.dpill.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.date-sum{font-size:11px;color:var(--accent-text);background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:6px;padding:4px 8px;margin-top:4px;display:none}
+.date-sum.show{display:block}
+
+/* Filter chips */
+.active-filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.875rem}
+.filter-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 8px;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:999px;font-size:12px;color:var(--accent-text)}
+.filter-chip button{background:none;border:none;cursor:pointer;color:var(--accent-text);font-size:14px;line-height:1;padding:0;margin-left:2px;opacity:.7}
+.filter-chip button:hover{opacity:1}
+
+/* Preview table */
+.table-wrap{border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.table-scroll{overflow-x:auto;max-height:380px;overflow-y:auto}
+.data-table{border-collapse:collapse;width:100%;font-size:13px}
+.data-table th{background:var(--surface-1);color:var(--text-secondary);font-weight:500;padding:9px 14px;text-align:left;border-bottom:1px solid var(--border);position:sticky;top:0;white-space:nowrap;cursor:pointer;user-select:none}
+.data-table th:hover{background:var(--border)}
+.data-table th .sort-icon{opacity:.4;font-size:12px;vertical-align:-1px}
+.data-table th.sorted .sort-icon{opacity:1;color:var(--accent)}
+.data-table td{padding:7px 14px;border-bottom:1px solid var(--border);color:var(--text-primary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--surface-1)}
+.data-table td.source-cell{color:var(--accent-text);font-size:11px;background:var(--accent-bg)}
+.table-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--surface-1);border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)}
+
+/* Section header */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.section-header h2{font-size:14px;font-weight:500;color:var(--text-primary);display:flex;align-items:center;gap:7px}
+.section-header h2 i{font-size:17px;color:var(--text-secondary)}
+.divider{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
+.hidden{display:none!important}
+@media(max-width:600px){.hero{padding:2rem 0 1.5rem}.hero h1{font-size:22px}.opts-grid,.filter-grid,.col-selector-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="hero">
+  <div class="hero-icon"><i class="ti ti-table-import"></i></div>
+  <h1>ZIP → Excel merger</h1>
+  <p>Upload multiple ZIPs (nested ZIPs supported). Merge all sheets into one, pick which columns you want, filter rows, and download exactly the data you need.</p>
+</div>
+
+<!-- Steps -->
+<div class="steps">
+  <div class="step active" id="step1"><span class="step-num">1</span> Upload ZIPs</div>
+  <div class="step-line"></div>
+  <div class="step" id="step2"><span class="step-num">2</span> Merge</div>
+  <div class="step-line"></div>
+  <div class="step" id="step3"><span class="step-num">3</span> Columns &amp; filters</div>
+  <div class="step-line"></div>
+  <div class="step" id="step4"><span class="step-num">4</span> Download</div>
+</div>
+
+<!-- Upload card -->
+<div class="card">
+  <div class="card-title"><i class="ti ti-upload"></i> Upload ZIP files</div>
+  <div class="upload-dropzone" id="dropZone">
+    <!-- input only covers top icon/text, not pills -->
+    <input type="file" id="fileInput" accept=".zip" multiple>
+    <div class="upload-icon"><i class="ti ti-file-zip"></i></div>
+    <div class="upload-title">Drop ZIP files here</div>
+    <div class="upload-sub">or click to browse — nested ZIPs supported at any depth</div>
+  </div>
+  <!-- Pills OUTSIDE the input so clicks register properly -->
+  <div class="file-pills" id="filePills"></div>
+</div>
+
+<!-- Options -->
+<div class="card">
+  <div class="card-title"><i class="ti ti-adjustments-horizontal"></i> Merge options</div>
+  <div class="opts-grid">
+    <div class="opt active" id="opt-source" onclick="toggleOpt('source')">
+      <div class="opt-check"><i class="ti ti-check"></i></div>
+      <div class="opt-body"><div class="opt-title">Source column</div><div class="opt-desc">Prepend a column showing file + sheet origin</div></div>
+    </div>
+    <div class="opt active" id="opt-header" onclick="toggleOpt('header')">
+      <div class="opt-check"><i class="ti ti-check"></i></div>
+      <div class="opt-body"><div class="opt-title">Skip duplicate headers</div><div class="opt-desc">Keep headers only from the first sheet</div></div>
+    </div>
+    <div class="opt" id="opt-empty" onclick="toggleOpt('empty')">
+      <div class="opt-check"><i class="ti ti-check"></i></div>
+      <div class="opt-body"><div class="opt-title">Skip empty rows</div><div class="opt-desc">Drop completely blank rows when stacking</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Action row -->
+<div class="btn-row" style="margin-bottom:1.25rem">
+  <button class="btn btn-primary" id="mergeBtn" disabled><i class="ti ti-table-down"></i> Merge all files</button>
+  <button class="btn hidden" id="resetBtn"><i class="ti ti-refresh"></i> Start over</button>
+</div>
+
+<!-- Progress -->
+<div class="progress-wrap hidden" id="progressWrap">
+  <div class="progress-label"><span id="progLabel">Processing…</span><span id="progPct">0%</span></div>
+  <div class="progress-track"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
+</div>
+
+<!-- Log -->
+<div class="log hidden" id="logBox"></div>
+
+<!-- Results section -->
+<div id="resultsSection" class="hidden">
+  <hr class="divider">
+
+  <!-- Stats -->
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <!-- ① Column selector -->
+  <div class="card" id="colSelectorCard">
+    <div class="section-header">
+      <h2><i class="ti ti-columns"></i> Choose columns <span class="col-count-badge" id="colCountBadge">0 selected</span></h2>
+      <div class="btn-row">
+        <button class="btn btn-sm" onclick="selectAllCols(true)"><i class="ti ti-check-all"></i> All</button>
+        <button class="btn btn-sm" onclick="selectAllCols(false)"><i class="ti ti-square"></i> None</button>
+      </div>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:.75rem">Check the columns you want in the download. Filters will only appear for checked columns.</p>
+    <div class="col-selector-grid" id="colSelectorGrid"></div>
+  </div>
+
+  <!-- ② Filters (only checked columns) -->
+  <div class="card" id="filterCard">
+    <div class="section-header">
+      <h2><i class="ti ti-filter"></i> Filters <span class="col-count-badge" id="filterCount">0 active</span></h2>
+      <button class="btn btn-sm" onclick="clearAllFilters()"><i class="ti ti-x"></i> Clear all</button>
+    </div>
+    <div class="active-filters" id="activeFiltersRow"></div>
+    <div class="filter-grid" id="filterGrid"></div>
+    <div id="filterEmpty" style="font-size:13px;color:var(--text-muted);padding:.5rem 0">Select columns above to see their filter controls here.</div>
+  </div>
+
+  <!-- ③ Preview table -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:1rem 1.25rem .75rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;font-weight:500;color:var(--text-primary);display:flex;align-items:center;gap:7px">
+        <i class="ti ti-table" style="font-size:16px;color:var(--text-secondary)"></i>
+        Preview <span class="col-count-badge" id="rowCountBadge">0 rows</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-sm btn-primary" id="downloadBtn"><i class="ti ti-download"></i> Download Excel</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table"><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+      </div>
+      <div class="table-footer" id="tableFooter"></div>
+    </div>
+  </div>
+</div><!-- /resultsSection -->
+</div><!-- /page -->
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+const opts = { source:true, header:true, empty:false };
+let allFiles   = [];
+let allRows    = [];   // all merged rows (raw)
+let headers    = [];   // column headers
+let colTypes   = {};   // ci → 'text'|'number'|'date'
+let checkedCols= new Set(); // ci values that are checked
+let filters    = {};   // ci → filter object
+let sortCol    = null, sortDir = 1;
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const dropZone      = document.getElementById('dropZone');
+const fileInput     = document.getElementById('fileInput');
+const filePills     = document.getElementById('filePills');
+const mergeBtn      = document.getElementById('mergeBtn');
+const resetBtn      = document.getElementById('resetBtn');
+const logBox        = document.getElementById('logBox');
+const progressWrap  = document.getElementById('progressWrap');
+const progFill      = document.getElementById('progFill');
+const progLabel     = document.getElementById('progLabel');
+const progPct       = document.getElementById('progPct');
+const resultsSection= document.getElementById('resultsSection');
+
+// ── Upload handling ───────────────────────────────────────────────────────────
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  addFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => addFiles(Array.from(fileInput.files)));
+
+function addFiles(newFiles) {
+  newFiles.forEach(f => {
+    if (f.name.toLowerCase().endsWith('.zip') && !allFiles.find(x => x.name === f.name))
+      allFiles.push(f);
+  });
+  renderPills();
+  mergeBtn.disabled = allFiles.length === 0;
+  dropZone.classList.toggle('has-files', allFiles.length > 0);
+}
+
+function removeFile(name) {
+  allFiles = allFiles.filter(f => f.name !== name);
+  renderPills();
+  mergeBtn.disabled = allFiles.length === 0;
+  dropZone.classList.toggle('has-files', allFiles.length > 0);
+}
+
+function renderPills() {
+  filePills.innerHTML = '';
+  allFiles.forEach(f => {
+    const pill = document.createElement('div');
+    pill.className = 'file-pill';
+    pill.innerHTML = `<i class="ti ti-file-zip zip-icon"></i><span>${f.name}</span>`;
+    const rm = document.createElement('span');
+    rm.className = 'pill-remove';
+    rm.title = 'Remove';
+    rm.innerHTML = '<i class="ti ti-x"></i>';
+    rm.addEventListener('click', e => { e.stopPropagation(); removeFile(f.name); });
+    pill.appendChild(rm);
+    filePills.appendChild(pill);
+  });
+}
+
+// ── Options ───────────────────────────────────────────────────────────────────
+function toggleOpt(k) {
+  opts[k] = !opts[k];
+  document.getElementById('opt-'+k).classList.toggle('active', opts[k]);
+}
+
+// ── Logging / progress ────────────────────────────────────────────────────────
+function log(msg, cls='') {
+  logBox.classList.remove('hidden');
+  const d = document.createElement('div');
+  d.className = 'log-line '+cls;
+  d.textContent = msg;
+  logBox.appendChild(d);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+function setProgress(pct, label) {
+  progressWrap.classList.remove('hidden');
+  progFill.style.width = pct+'%';
+  if (label) progLabel.textContent = label;
+  progPct.textContent = Math.round(pct)+'%';
+}
+function setStep(n) {
+  [1,2,3,4].forEach(i => {
+    const el = document.getElementById('step'+i);
+    el.classList.remove('active','done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  });
+}
+
+// ── ZIP extraction ────────────────────────────────────────────────────────────
+async function extractZipsRecursively(zipData, path, collector) {
+  const zip = await JSZip.loadAsync(zipData);
+  const innerZips = [], excelFiles = [];
+  for (const [name, file] of Object.entries(zip.files)) {
+    if (file.dir) continue;
+    const lower = name.toLowerCase();
+    if (lower.endsWith('.zip')) innerZips.push({ name, file });
+    else if (lower.endsWith('.xlsx')||lower.endsWith('.xls')||lower.endsWith('.xlsm'))
+      excelFiles.push({ name, file });
+  }
+  if (innerZips.length > 0) {
+    log(`↳ ${path||'root'} — ${innerZips.length} nested ZIP(s)`, 'info');
+    for (const iz of innerZips) {
+      const buf = await iz.file.async('arraybuffer');
+      await extractZipsRecursively(buf, (path?path+'/':'')+iz.name.replace('.zip',''), collector);
+    }
+  } else {
+    log(`↳ Innermost: ${path||'root'} — ${excelFiles.length} Excel file(s)`, 'ok');
+    for (const ef of excelFiles) {
+      const buf = await ef.file.async('arraybuffer');
+      collector.push({ name: ef.name, data: buf });
+    }
+  }
+}
+
+// ── Merge ─────────────────────────────────────────────────────────────────────
+mergeBtn.addEventListener('click', async () => {
+  logBox.innerHTML = ''; logBox.classList.remove('hidden');
+  allRows = []; headers = []; colTypes = {}; checkedCols = new Set(); filters = {}; sortCol = null; sortDir = 1;
+  setStep(2); mergeBtn.disabled = true;
+  log(`Processing ${allFiles.length} ZIP file(s)…`, 'bold');
+  setProgress(5, 'Reading ZIPs…');
+
+  try {
+    const excelCollector = [];
+    for (let fi = 0; fi < allFiles.length; fi++) {
+      const f = allFiles[fi];
+      log(`\nZIP: ${f.name}`, 'bold');
+      const buf = await f.arrayBuffer();
+      await extractZipsRecursively(buf, f.name.replace('.zip',''), excelCollector);
+      setProgress(5 + (fi+1)/allFiles.length*35, `Extracting: ${f.name}`);
+    }
+
+    if (excelCollector.length === 0) { log('No Excel files found.','err'); mergeBtn.disabled=false; return; }
+    log(`\nFound ${excelCollector.length} Excel file(s). Stacking rows…`, 'bold');
+    setProgress(40, 'Merging sheets…');
+
+    let headerSet = false, totalSheets = 0, totalDataRows = 0;
+
+    for (let ei = 0; ei < excelCollector.length; ei++) {
+      const ef = excelCollector[ei];
+      setProgress(40 + (ei/excelCollector.length)*50, `Reading: ${ef.name}`);
+      try {
+        const wb = XLSX.read(ef.data, { type:'array', cellDates:true });
+        for (const sheetName of wb.SheetNames) {
+          totalSheets++;
+          const ws = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+          if (!rows||rows.length===0) continue;
+          const srcLabel = `${ef.name} › ${sheetName}`;
+          if (opts.header) {
+            const shHeader = rows[0];
+            if (!headerSet) { headers = opts.source ? ['_source',...shHeader] : [...shHeader]; headerSet=true; }
+            const dr = rows.slice(1);
+            for (const row of dr) {
+              if (opts.empty && row.every(c=>c===''||c==null)) continue;
+              allRows.push(opts.source ? [srcLabel,...row] : [...row]);
+              totalDataRows++;
+            }
+          } else {
+            if (!headerSet) { headers = opts.source ? ['_source',...(rows[0]||[])] : [...(rows[0]||[])]; headerSet=true; rows.splice(0,1); }
+            for (const row of rows) {
+              if (opts.empty && row.every(c=>c===''||c==null)) continue;
+              allRows.push(opts.source ? [srcLabel,...row] : [...row]);
+              totalDataRows++;
+            }
+          }
+          log(`  • ${ef.name} › ${sheetName} — ${totalDataRows} rows so far`, 'ok');
+        }
+      } catch(e) { log(`  ✗ ${ef.name}: ${e.message}`, 'err'); }
+    }
+
+    setProgress(95, 'Building UI…');
+    detectColTypes();
+    // default: all columns checked
+    headers.forEach((_, ci) => checkedCols.add(ci));
+    buildStatsGrid(excelCollector.length, totalSheets, totalDataRows);
+    buildColSelector();
+    buildFilters();
+    renderTable();
+    setProgress(100, 'Done!');
+    setStep(3);
+    resultsSection.classList.remove('hidden');
+    resetBtn.classList.remove('hidden');
+    log(`\nDone! ${totalDataRows.toLocaleString()} rows, ${headers.length} columns.`, 'bold');
+  } catch(e) { log('Error: '+e.message,'err'); mergeBtn.disabled=false; }
+});
+
+resetBtn.addEventListener('click', () => {
+  allFiles=[]; allRows=[]; headers=[]; colTypes={}; checkedCols=new Set(); filters={}; sortCol=null; sortDir=1;
+  filePills.innerHTML=''; logBox.innerHTML=''; logBox.classList.add('hidden');
+  resultsSection.classList.add('hidden'); progressWrap.classList.add('hidden');
+  resetBtn.classList.add('hidden'); mergeBtn.disabled=true;
+  dropZone.classList.remove('has-files'); fileInput.value='';
+  setStep(1);
+});
+
+// ── Column type detection ─────────────────────────────────────────────────────
+function detectColTypes() {
+  colTypes = {};
+  headers.forEach((h, ci) => {
+    if (h==='_source') { colTypes[ci]='text'; return; }
+    let nums=0, dates=0, total=0;
+    for (const row of allRows.slice(0,300)) {
+      const v = row[ci];
+      if (v===''||v==null) continue;
+      total++;
+      if (v instanceof Date) dates++;
+      else if (!isNaN(Number(String(v).replace(/,/g,'')))) nums++;
+    }
+    if (total===0) { colTypes[ci]='text'; return; }
+    if (dates/total>0.5) colTypes[ci]='date';
+    else if (nums/total>0.6) colTypes[ci]='number';
+    else colTypes[ci]='text';
+  });
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function buildStatsGrid(files, sheets, rows) {
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${files}</div><div class="stat-label">Excel files</div></div>
+    <div class="stat-card"><div class="stat-num">${sheets}</div><div class="stat-label">Sheets merged</div></div>
+    <div class="stat-card"><div class="stat-num">${rows.toLocaleString()}</div><div class="stat-label">Total rows</div></div>
+    <div class="stat-card"><div class="stat-num">${headers.length}</div><div class="stat-label">Columns</div></div>`;
+}
+
+// ── Column selector ───────────────────────────────────────────────────────────
+function buildColSelector() {
+  const grid = document.getElementById('colSelectorGrid');
+  grid.innerHTML = '';
+  headers.forEach((h, ci) => {
+    const t = colTypes[ci]||'text';
+    const item = document.createElement('div');
+    item.className = 'col-item checked';
+    item.id = 'col-item-'+ci;
+    item.innerHTML = `
+      <div class="col-cb"><i class="ti ti-check"></i></div>
+      <span class="col-name" title="${h||'Col '+(ci+1)}">${h||'Col '+(ci+1)}</span>
+      <span class="col-type-dot dot-${t}" title="${t}"></span>`;
+    item.addEventListener('click', () => toggleCol(ci));
+    grid.appendChild(item);
+  });
+  updateColBadge();
+}
+
+function toggleCol(ci) {
+  if (checkedCols.has(ci)) checkedCols.delete(ci);
+  else checkedCols.add(ci);
+  // remove filter for unchecked col
+  if (!checkedCols.has(ci)) { delete filters[ci]; }
+  document.getElementById('col-item-'+ci).classList.toggle('checked', checkedCols.has(ci));
+  updateColBadge();
+  buildFilters();
+  renderTable();
+}
+
+function selectAllCols(all) {
+  headers.forEach((_, ci) => {
+    if (all) checkedCols.add(ci);
+    else { checkedCols.delete(ci); delete filters[ci]; }
+    const el = document.getElementById('col-item-'+ci);
+    if (el) el.classList.toggle('checked', all);
+  });
+  updateColBadge();
+  buildFilters();
+  renderTable();
+}
+
+function updateColBadge() {
+  document.getElementById('colCountBadge').textContent = checkedCols.size+' / '+headers.length+' selected';
+}
+
+// ── Filters (only for checked columns) ───────────────────────────────────────
+function buildFilters() {
+  const grid = document.getElementById('filterGrid');
+  const empty = document.getElementById('filterEmpty');
+  grid.innerHTML = '';
+  const checked = headers.map((_,ci)=>ci).filter(ci=>checkedCols.has(ci));
+  if (checked.length===0) { empty.style.display=''; return; }
+  empty.style.display='none';
+
+  checked.forEach(ci => {
+    const h = headers[ci];
+    const t = colTypes[ci]||'text';
+    const typeClass = 'type-'+t;
+    const div = document.createElement('div');
+    div.className = 'filter-item';
+    div.id = 'filter-item-'+ci;
+
+    if (t==='number') {
+      div.innerHTML = `
+        <div class="filter-label">${h} <span class="type-badge ${typeClass}">number</span></div>
+        <div class="filter-row-num">
+          <input class="filter-input" type="number" placeholder="Min" data-col="${ci}" data-type="num-min" oninput="onFilterChange(this)">
+          <span class="filter-sep">–</span>
+          <input class="filter-input" type="number" placeholder="Max" data-col="${ci}" data-type="num-max" oninput="onFilterChange(this)">
+        </div>`;
+    } else if (t==='date') {
+      const dateVals = allRows.map(r=>parseDate(r[ci])).filter(Boolean);
+      const monthSet = [...new Set(dateVals.map(d=>d.getMonth()))].sort((a,b)=>a-b);
+      const daySet   = [...new Set(dateVals.map(d=>d.getDate()))].sort((a,b)=>a-b);
+      const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const mPills = monthSet.map(m=>`<span class="dpill" data-col="${ci}" data-dtype="month" data-val="${m}" onclick="toggleDatePill(this)">${MN[m]}</span>`).join('');
+      const dPills = daySet.map(d=>`<span class="dpill" data-col="${ci}" data-dtype="day" data-val="${d}" onclick="toggleDatePill(this)">${String(d).padStart(2,'0')}</span>`).join('');
+      div.style.gridColumn = 'span 2';
+      div.innerHTML = `
+        <div class="filter-label">${h} <span class="type-badge ${typeClass}">date</span></div>
+        <div class="date-picker-wrap">
+          <div><div class="date-section-lbl"><i class="ti ti-calendar-month" style="font-size:11px;vertical-align:-1px"></i> Month</div>
+            <div class="pill-group" id="mp-${ci}">${mPills||'<span style="font-size:12px;color:var(--text-muted)">No dates detected</span>'}</div></div>
+          <div><div class="date-section-lbl"><i class="ti ti-calendar-day" style="font-size:11px;vertical-align:-1px"></i> Day of month</div>
+            <div class="pill-group" id="dp-${ci}">${dPills}</div></div>
+          <div class="date-sum" id="ds-${ci}"></div>
+        </div>`;
+    } else {
+      const uniq = [...new Set(allRows.map(r=>String(r[ci]??'')).filter(Boolean))].slice(0,200);
+      if (uniq.length<=25) {
+        div.innerHTML = `
+          <div class="filter-label">${h} <span class="type-badge ${typeClass}">text</span></div>
+          <select class="filter-input" data-col="${ci}" data-type="select" onchange="onFilterChange(this)">
+            <option value="">All values</option>
+            ${uniq.sort().map(v=>`<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('')}
+          </select>`;
+      } else {
+        div.innerHTML = `
+          <div class="filter-label">${h} <span class="type-badge ${typeClass}">text</span></div>
+          <input class="filter-input" type="text" placeholder="Search…" data-col="${ci}" data-type="text" oninput="onFilterChange(this)">`;
+      }
+    }
+
+    // restore existing filter state into rebuilt controls
+    if (filters[ci]) {
+      const f = filters[ci];
+      if (f['num-min']) { const el=div.querySelector('[data-type=num-min]'); if(el) el.value=f['num-min']; }
+      if (f['num-max']) { const el=div.querySelector('[data-type=num-max]'); if(el) el.value=f['num-max']; }
+      if (f.text)       { const el=div.querySelector('[data-type=text]');    if(el) el.value=f.text; }
+      if (f.select)     { const el=div.querySelector('[data-type=select]');  if(el) el.value=f.select; }
+      if (f.months&&f.months.size>0) {
+        setTimeout(()=>{ f.months.forEach(m=>{ const p=div.querySelector(`.dpill[data-dtype=month][data-val="${m}"]`); if(p) p.classList.add('active'); }); updateDateSummary(ci); },0);
+      }
+      if (f.days&&f.days.size>0) {
+        setTimeout(()=>{ f.days.forEach(d=>{ const p=div.querySelector(`.dpill[data-dtype=day][data-val="${d}"]`); if(p) p.classList.add('active'); }); updateDateSummary(ci); },0);
+      }
+    }
+    grid.appendChild(div);
+  });
+}
+
+// ── Date pill ─────────────────────────────────────────────────────────────────
+function toggleDatePill(el) {
+  const ci=+el.dataset.col, dtype=el.dataset.dtype, val=+el.dataset.val;
+  el.classList.toggle('active');
+  if (!filters[ci]) filters[ci]={ months:new Set(), days:new Set() };
+  if (!filters[ci].months) filters[ci].months=new Set();
+  if (!filters[ci].days)   filters[ci].days=new Set();
+  const set = dtype==='month' ? filters[ci].months : filters[ci].days;
+  el.classList.contains('active') ? set.add(val) : set.delete(val);
+  if (filters[ci].months.size===0&&filters[ci].days.size===0) delete filters[ci];
+  updateDateSummary(ci);
+  renderActiveFilterChips();
+  renderTable();
+}
+
+function updateDateSummary(ci) {
+  const el=document.getElementById('ds-'+ci); if(!el) return;
+  const f=filters[ci];
+  if (!f||(f.months.size===0&&f.days.size===0)) { el.classList.remove('show'); el.textContent=''; return; }
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const parts=[];
+  if (f.months&&f.months.size>0) parts.push('Months: '+[...f.months].sort((a,b)=>a-b).map(m=>MN[m]).join(', '));
+  if (f.days&&f.days.size>0) parts.push('Days: '+[...f.days].sort((a,b)=>a-b).map(d=>String(d).padStart(2,'0')).join(', '));
+  el.textContent=parts.join(' · '); el.classList.add('show');
+}
+
+// ── Generic filter change ─────────────────────────────────────────────────────
+function onFilterChange(el) {
+  const ci=+el.dataset.col, type=el.dataset.type, val=el.value.trim();
+  if (!filters[ci]) filters[ci]={};
+  if (val) filters[ci][type]=val; else delete filters[ci][type];
+  const nonDate=Object.keys(filters[ci]).filter(k=>k!=='months'&&k!=='days');
+  const hasDate=(filters[ci].months&&filters[ci].months.size>0)||(filters[ci].days&&filters[ci].days.size>0);
+  if (nonDate.length===0&&!hasDate) delete filters[ci];
+  renderActiveFilterChips();
+  renderTable();
+}
+
+function renderActiveFilterChips() {
+  const row=document.getElementById('activeFiltersRow');
+  const count=Object.keys(filters).length;
+  document.getElementById('filterCount').textContent=count+' active';
+  if (count===0) { row.innerHTML=''; return; }
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  row.innerHTML=Object.entries(filters).map(([ci,f])=>{
+    const h=headers[+ci]||'Col '+ci;
+    const parts=[];
+    if (f['num-min']) parts.push('≥ '+f['num-min']);
+    if (f['num-max']) parts.push('≤ '+f['num-max']);
+    if (f.text) parts.push('"'+f.text+'"');
+    if (f.select) parts.push('"'+f.select+'"');
+    if (f.months&&f.months.size>0) parts.push([...f.months].sort((a,b)=>a-b).map(m=>MN[m]).join('/'));
+    if (f.days&&f.days.size>0) parts.push('day '+[...f.days].sort((a,b)=>a-b).join(','));
+    return `<div class="filter-chip"><i class="ti ti-filter" style="font-size:12px"></i>${h}: ${parts.join(', ')}<button onclick="clearFilter(${ci})">✕</button></div>`;
+  }).join('');
+}
+
+function clearFilter(ci) {
+  delete filters[ci];
+  buildFilters();
+  renderActiveFilterChips();
+  renderTable();
+}
+
+function clearAllFilters() {
+  filters={};
+  buildFilters();
+  renderActiveFilterChips();
+  renderTable();
+}
+
+// ── Date parse ────────────────────────────────────────────────────────────────
+function parseDate(v) {
+  if (!v&&v!==0) return null;
+  if (v instanceof Date) return isNaN(v)?null:v;
+  if (typeof v==='number') { const d=XLSX.SSF.parse_date_code(v); if(d) return new Date(d.y,d.m-1,d.d); }
+  const s=String(v).trim(); if (!s) return null;
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+
+// ── Filter + sort rows ────────────────────────────────────────────────────────
+function getFilteredRows() {
+  return allRows.filter(row =>
+    Object.entries(filters).every(([ci,f]) => {
+      const v=row[+ci], vStr=String(v??'').toLowerCase();
+      if (f.text!==undefined&&!vStr.includes(f.text.toLowerCase())) return false;
+      if (f.select!==undefined&&f.select!==''&&vStr!==f.select.toLowerCase()) return false;
+      if (f['num-min']!==undefined&&f['num-min']!=='') { if(isNaN(+v)||+v<+f['num-min']) return false; }
+      if (f['num-max']!==undefined&&f['num-max']!=='') { if(isNaN(+v)||+v>+f['num-max']) return false; }
+      if ((f.months&&f.months.size>0)||(f.days&&f.days.size>0)) {
+        const d=parseDate(v); if(!d) return false;
+        if (f.months&&f.months.size>0&&!f.months.has(d.getMonth())) return false;
+        if (f.days&&f.days.size>0&&!f.days.has(d.getDate())) return false;
+      }
+      return true;
+    })
+  );
+}
+
+function sortRows(rows) {
+  if (sortCol===null) return rows;
+  return [...rows].sort((a,b)=>{
+    const av=a[sortCol],bv=b[sortCol];
+    if (av==null||av==='') return 1; if (bv==null||bv==='') return -1;
+    const an=Number(av),bn=Number(bv);
+    if (!isNaN(an)&&!isNaN(bn)) return (an-bn)*sortDir;
+    return String(av).localeCompare(String(bv))*sortDir;
+  });
+}
+
+// ── Render table (only checked columns) ──────────────────────────────────────
+function renderTable() {
+  const visibleCols = headers.map((_,ci)=>ci).filter(ci=>checkedCols.has(ci));
+  const filtered = getFilteredRows();
+  const sorted   = sortRows(filtered);
+  const PREVIEW  = 500;
+  const display  = sorted.slice(0, PREVIEW);
+
+  document.getElementById('rowCountBadge').textContent = filtered.length.toLocaleString()+' rows';
+
+  // Head
+  const head = document.getElementById('tableHead');
+  head.innerHTML = `<tr>${visibleCols.map(ci=>{
+    const h=headers[ci]||'Col '+(ci+1);
+    const isSorted=sortCol===ci;
+    return `<th onclick="toggleSort(${ci})" class="${isSorted?'sorted':''}">
+      ${h} <i class="ti ${isSorted?(sortDir===1?'ti-arrow-up':'ti-arrow-down'):'ti-arrows-sort'} sort-icon"></i>
+    </th>`;
+  }).join('')}</tr>`;
+
+  // Body
+  const tbody=document.getElementById('tableBody');
+  if (display.length===0) {
+    tbody.innerHTML=`<tr><td colspan="${visibleCols.length}" style="text-align:center;padding:2rem;color:var(--text-muted)">No rows match the current filters</td></tr>`;
+  } else {
+    tbody.innerHTML=display.map(row=>
+      `<tr>${visibleCols.map(ci=>{
+        const v=row[ci]!=null?row[ci]:'';
+        const isSrc=opts.source&&ci===0;
+        return `<td class="${isSrc?'source-cell':''}" title="${String(v).replace(/"/g,'&quot;')}">${String(v).substring(0,120)}</td>`;
+      }).join('')}</tr>`
+    ).join('');
+  }
+
+  document.getElementById('tableFooter').textContent =
+    filtered.length>PREVIEW
+      ? `Showing first ${PREVIEW.toLocaleString()} of ${filtered.length.toLocaleString()} rows — download to see all`
+      : `${filtered.length.toLocaleString()} rows`;
+
+  document.getElementById('downloadBtn').onclick = () => downloadData(sorted, visibleCols);
+  setStep(filtered.length>0?4:3);
+}
+
+function toggleSort(ci) {
+  if (sortCol===ci) sortDir*=-1; else { sortCol=ci; sortDir=1; }
+  renderTable();
+}
+
+// ── Download (only checked columns, only filtered rows) ───────────────────────
+function downloadData(rows, visibleCols) {
+  const visHeaders = visibleCols.map(ci=>headers[ci]);
+  const visRows    = rows.map(row=>visibleCols.map(ci=>row[ci]));
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([visHeaders,...visRows]);
+  XLSX.utils.book_append_sheet(wb, ws, 'Merged');
+  XLSX.writeFile(wb, 'merged_filtered.xlsx');
+}
+</script>
+</body>
+</html>
